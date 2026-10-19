@@ -62,6 +62,7 @@ class LogService {
     day = null,
     classId = null,
     userId = null,
+    q = "",
     page = 1,
     pageSize = 20,
   } = {}) {
@@ -75,6 +76,11 @@ class LogService {
     if (day) {
       clauses.push("l.created_at >= ? AND l.created_at < DATE_ADD(?, INTERVAL 1 DAY)");
       params.push(`${day} 00:00:00`, `${day} 00:00:00`);
+    }
+    if (q) {
+      clauses.push("(l.content LIKE ? OR u.username LIKE ?)");
+      const keyword = `%${q}%`;
+      params.push(keyword, keyword);
     }
     if (classId) {
       clauses.push("u.class_id = ?");

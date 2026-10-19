@@ -316,6 +316,7 @@ adminRouter.get("/logs", async (req, res) => {
       day: day || null,
       classId: Number(req.query.class_id || 0) || null,
       userId: Number(req.query.user_id || 0) || null,
+      q: String(req.query.q || "").trim(),
       page: parsePage(req.query.page, 1),
       pageSize: parsePageSize(req.query.page_size, 20),
     }),
