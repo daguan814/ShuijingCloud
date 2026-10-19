@@ -3,93 +3,79 @@
 > 重要：更新代码时绝对不要删除以下目录：
 >
 > ```text
-> /vol2/1000/backup/ShuijingTools/storage
-> /vol2/1000/backup/docker/mysql
+> /vol2/1000/deploy/ShuijingCloud/storage
+> /vol2/1000/deploy/ShuijingCloud/logs
+> /vol2/1000/deploy/mysql
 > ```
 >
-> 这两个目录分别保存用户文件和 MySQL 数据。
+> 前两个保存用户文件与日志，最后一个保存用户、会话以及 SupaAiMd 等共用数据库。
 
 当前部署目标：
 
 - 服务器：`shuijing.site`
 - SSH 端口：`12222`
-- 部署目录：`/vol2/1000/backup/ShuijingTools`
-- 后端：`systemd` 服务 `shuijing-tools.service`，监听 `127.0.0.1:18080`
-- 前端：由 `shuijing-nginx` 容器提供，挂载目录 `frontend`
+- 部署目录：`/vol2/1000/deploy/ShuijingCloud`
+- 应用代码：`/vol2/1000/deploy/ShuijingCloud/app`
+- 容器：`shuijing-cloud`，监听 `0.0.0.0:8080`（HTTPS）
+- 前端与 API 同源，由 Node 进程直接提供
 - 对外入口：`https://shuijing.site:8080`
-- 敏感配置：项目根目录 `.env`，权限必须为 `600`，禁止提交 Git
+- 敏感配置：`/vol2/1000/deploy/ShuijingCloud/.env`（权限 `600`）
 
-## 更新后端
-
-只同步代码，不使用 `--delete`：
+## 首次部署 / 更新
 
 ```bash
-rsync -az --exclude='__pycache__' --exclude='*.pyc' \
-  backend requirements.txt readme.md \
-  shuijing@shuijing.site:/vol2/1000/backup/ShuijingTools/
+rsync -az --exclude node_modules --exclude .env --exclude test \
+  -e "ssh -i ~/Documents/id_rsa_macos -p 12222" \
+  server/ shuijing@shuijing.site:/vol2/1000/deploy/ShuijingCloud/app/server/
 
-ssh -p 12222 shuijing@shuijing.site \
-  'sudo systemctl restart shuijing-tools.service'
+rsync -az --exclude .DS_Store \
+  -e "ssh -i ~/Documents/id_rsa_macos -p 12222" \
+  frontend/ shuijing@shuijing.site:/vol2/1000/deploy/ShuijingCloud/app/frontend/
+
+ssh -i ~/Documents/id_rsa_macos -p 12222 shuijing@shuijing.site '
+  cd /vol2/1000/deploy/ShuijingCloud/app &&
+  docker build -f server/Dockerfile -t shuijing-cloud:latest . &&
+  docker rm -f shuijing-cloud
+'
 ```
 
-## 更新前端
-
-只同步 `frontend` 目录，不要动 `storage` 和 `docker/mysql`：
+启动容器：
 
 ```bash
-rsync -az --exclude='.DS_Store' frontend \
-  shuijing@shuijing.site:/vol2/1000/backup/ShuijingTools/
+docker run -d --name shuijing-cloud --restart unless-stopped \
+  -p 8080:8080 \
+  --add-host=host.docker.internal:host-gateway \
+  --env-file /vol2/1000/deploy/ShuijingCloud/.env \
+  -v /vol2/1000/deploy/ShuijingCloud/storage:/data/storage \
+  -v /vol2/1000/deploy/ShuijingCloud/logs:/data/logs \
+  -v "/vol2/1000/deploy/证书文档/Nginx:/certs:ro" \
+  shuijing-cloud:latest
 ```
 
-## Nginx
+## 数据库
 
-配置文件位于：
+- 数据库名：`ShuijingCloud`
+- 应用账号：`shuijing_cloud`，仅拥有 `ShuijingCloud.*` 权限
+- MySQL 容器：`mysql`，端口 `3306`
+- 容器内通过 `host.docker.internal:3306` 访问
 
-```text
-deploy/nginx/conf.d/shuijing.site.conf
-```
-
-前端挂载到容器内的 `/srv/frontend`，`/api/` 反向代理到 `127.0.0.1:18080`。
-
-如果修改了 Nginx 配置，需要让容器重新加载：
+## 验证
 
 ```bash
-ssh -p 12222 shuijing@shuijing.site \
-  'docker exec shuijing-nginx nginx -s reload'
+docker ps --filter name=shuijing-cloud
+docker logs --tail 50 shuijing-cloud
+curl -k https://shuijing.site:8080/api/health
 ```
 
-## kkFileView 文件预览
+正常应返回 `{"ok":true}`，用户端与管理端页脚版本号一致。
 
-管理员端的“用户组文件”和“个人文件”使用 kkFileView 预览；普通用户端不提供预览。
+## 本地开发隧道
 
-- 容器名称：`shuijing-kkfileview`
-- 镜像：`keking/kkfileview:latest`
-- 仅监听服务器本机：`127.0.0.1:8012`
-- 公网入口：Nginx 的 `/kk/` 反向代理；不要直接暴露 `8012` 端口。
-- 后端通过 10 分钟有效的单文件预览票据向 kkFileView 提供文件；不要改成公开存储路径或长期链接。
-
-容器回源时必须把 `shuijing.site` 映射到 Docker 宿主机网关，否则服务器外网回环可能出现 `Connection reset`。创建或重建容器时保留以下关键参数：
+`/etc/ssh/sshd_config.d/00-allow-forwarding.conf` 已启用 `AllowTcpForwarding yes`，本地可执行：
 
 ```bash
-docker run -d --name shuijing-kkfileview --restart unless-stopped \
-  --add-host shuijing.site:host-gateway \
-  -p 127.0.0.1:8012:8012 \
-  -e KK_BASE_URL=https://shuijing.site:8080/kk \
-  -e KK_TRUST_HOST=shuijing.site \
-  -e KK_NOT_TRUST_HOST=localhost,127.0.0.1,10.*,172.16.*,169.254.* \
-  -e KK_FILE_UPLOAD_DISABLE=true -e KK_ADD_TASK=false \
-  keking/kkfileview:latest
+ssh -i ~/Documents/id_rsa_macos -p 12222 \
+  -L 3306:127.0.0.1:3306 shuijing@shuijing.site
 ```
 
-修改 `/kk/` 的 Nginx 配置后需要热加载 Nginx；修改 `backend/preview_service.py`、`backend/app.py` 或预览路由后需要重启 `shuijing-tools.service`。
-
-## 回滚
-
-部署前备份位于服务器：
-
-```text
-/vol2/1000/backup/ShuijingTools_backup_*
-```
-
-包含旧 `app/`、`vue/`、`deploy/`、`readme.md`、`requirements.txt` 和旧的
-`shuijing-tools.service`。
+> fnOS 升级后如覆盖了 sshd 配置，需重新创建该文件并 `systemctl reload ssh`。

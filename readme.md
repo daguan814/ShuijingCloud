@@ -1,8 +1,8 @@
-# 水镜云盘（ShuijingTools）
+# 水镜云盘（ShuijingCloud）
 
-面向教学与通用团队场景的轻量云盘，采用 Flask、MySQL 和 Vue 3 构建。系统按“管理员 → 用户组 → 用户”组织：用户保存文件，管理员管理用户组、账号、文件、公告和报告。
+面向班级的文件云盘：按班级与学生隔离目录，学生自助上传、下载与整理文件，管理员统一管理用户组、注册审核、共享文件、回收站与操作日志。
 
-
+后端已迁移到 Node.js（Express 5 + mysql2），前端保持静态 Vue 3，无需构建步骤，由 Node 进程同源提供页面与 API。
 
 ## 功能
 
@@ -11,213 +11,130 @@
 - 管理员后台位于 `/admin/`，可以新增、改名和删除空用户组；
 - 管理员可以审核注册、修改用户名/用户组/密码、禁用账号，并谨慎删除用户；
 - 管理员改名或转组时，对应文件目录同步移动；
-- 管理员选择用户组后可直接查看该组用户目录，并像个人云盘一样逐级浏览、预览、上传、新建、重命名、移动、删除和下载文件；
+- 管理员选择用户组后可直接查看该组用户目录，并像个人云盘一样逐级浏览、上传、新建、重命名、移动、删除和下载文件；
+- 管理员个人文件可共享给指定用户组；
 - 管理员可以按用户组发布公告，用户可以向管理员提交报告；
 - 浏览目录、查看修改时间和普通文件大小；
 - 文件夹显示直接下一层的文件夹数、文件数以及全部内容总大小；
-- 上传单个文件、多个文件或完整文件夹；
-- 支持拖放上传并保留目录结构；
+- 上传单个文件、多个文件或完整文件夹，支持拖放并保留目录结构；
 - 新建文件夹、单项重命名、批量移动和批量删除；
-- 文件列表较长时，路径、上传和批量操作工具栏会固定在页面顶部；
-- 学生删除内容后进入 `storage/回收站/` 下的统一回收站，只有管理员可以恢复；
-- 常见图片、文档、文本、音视频文件在线预览；
-- 单个文件使用浏览器原生下载，支持条件请求和 Range；
-- 多文件或文件夹在服务器临时生成 ZIP 后下载；
-- 文件操作日志统一在管理后台查看，可按班级、学生、日期与操作类型组合筛选，并支持统计和分页；
-- 用户组与用户在同一页面按用户组折叠展示，注册审核、用户报告、公告发布与历史消息集中在消息中心；
-- 同一浏览器连续登录失败5次后锁定5小时；
+- 学生删除内容后进入统一回收站，管理员可以恢复；
+- 图片、音频、视频与文本文件支持浏览器原生在线预览；PDF / Office 文档不再提供在线预览，请下载后查看；
+- 单个文件支持浏览器原生下载与 Range 请求，多文件或文件夹在服务器生成 ZIP 后下载；
+- 文件操作日志统一在管理后台查看，可按班级、学生、日期与操作类型组合筛选；
+- 同一浏览器连续登录失败 5 次后锁定 5 小时；
 - 显示用户已用空间和服务器磁盘容量。
-
-前端以 Vue 3 组件和响应式状态实现；静态运行时随项目发布，无需 Node.js 构建步骤。旧数据中保留的内部数据库表名仅为兼容历史数据，对界面和存储结构没有影响。
 
 ## 目录结构
 
 ```text
-.
-├── backend/                       Flask API
-│   ├── app.py                     应用、中间件、CORS 和预览入口
-│   ├── config.py                  环境配置
-│   ├── database.py                MySQL/SQLite 初始化和查询
-│   ├── auth_service.py            登录会话
-│   ├── file_service.py            文件隔离、路径校验和 ZIP 生成
-│   ├── log_service.py             用户文件操作日志
-│   ├── recycle_service.py         统一回收站移动与管理员恢复
-│   ├── school_service.py          班级、注册、学生、公告和汇报
-│   ├── routes/                    API 路由
-│   └── storage/                   本地预览存储（生产环境不使用）
-├── frontend/                      学生端和 `/admin/` 管理端
-├── deploy/                        Nginx、systemd 和部署说明
-├── tests/                         集成测试
-├── .env.example                   环境变量示例
-└── requirements.txt               固定版本的 Python 依赖
+server/            Node.js 服务（Express 5）
+  src/routes/      API 路由：auth / files / recycle / logs / admin
+  src/services/    文件、回收站、管理员文件、学校与日志服务
+  src/lib/         密码校验、路径安全、票据签名、ZIP
+  test/            node:test 单元测试
+frontend/          静态 Vue 3 页面与管理端
+backend/           旧 Python 实现，仅作迁移对照，不再部署
+deploy/            部署说明与历史配置
 ```
 
 ## 存储模型
 
-生产文件保存在：
+- 用户文件：`$STORAGE_ROOT/<班级 storage_key>/<用户 storage_key>/`
+- 用户回收站：`$RECYCLE_ROOT/<班级>/<用户>/<随机名>`
+- 管理员个人文件：`$STORAGE_ROOT/管理员文件/<管理员用户名>/`
+- 管理员回收站：`$RECYCLE_ROOT/管理员文件/<管理员用户名>/`
+- 删除学生账号时，其目录移动到 `$STORAGE_ROOT/回收站/已删除学生/`
 
-```text
-/vol2/1000/backup/ShuijingTools/storage/<用户组>/<用户名>/
-```
-
-例如：
-
-```text
-storage/
-├── 111/
-│   ├── shuijing/
-│   └── stu_203/
-└── 回收站/
-    └── 111/
-```
-
-班级名和学生姓名最长64个字符，不允许斜杠、控制字符、`.` 或 `..`。学生姓名可使用中文、字母、数字、下划线和短横线。后端会校验所有相对路径，拒绝绝对路径、`..` 和逃逸学生目录的访问。
-
-目录列表会显示文件夹直接下一层的文件夹数、文件数，以及该文件夹内全部内容的总大小；文件较多时仍建议按目录分层存放，以减少单次扫描开销。
-
-## 下载机制
-
-下载分为两步：
-
-1. 前端携带登录令牌调用 `/api/files/download/prepare`；
-2. 后端返回5分钟有效的签名下载链接，浏览器使用原生下载访问该链接。
-
-只选择一个普通文件时直接返回原文件。选择多个项目或文件夹时，后端在系统临时目录生成 ZIP，响应结束后自动删除临时文件。这避免了旧版本在服务器和浏览器中同时保存数百 MB Blob 的问题。
-
-前端 JS/CSS 使用版本参数并由 Nginx 设置重新验证缓存，部署新版本后不会继续调用已删除的旧接口。
+数据库沿用旧表名（`storage_users`、`admin_users`、`sessions` 等），账号密码哈希为 Werkzeug `scrypt:32768:8:1`，Node 端可直接校验，无需重置密码。
 
 ## 本地开发
 
-### 安装依赖
+### 1. 建立数据库隧道
+
+生产 MySQL 只允许经 NAS 访问：
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+ssh -i /Users/shuijing/Documents/id_rsa_macos -p 12222 \
+  -L 3306:127.0.0.1:3306 shuijing@shuijing.site
 ```
 
-### 使用 SQLite 启动后端
+### 2. 配置环境变量
 
 ```bash
-DB_DRIVER=sqlite \
-SQLITE_DB_PATH=/tmp/shuijingtools_preview.db \
-STORAGE_ROOT=/tmp/shuijingtools_preview_storage \
-SECRET_KEY=local-development-secret \
-FLASK_DEBUG=1 \
-python3 -m backend.app
+cp .env.example server/.env
 ```
 
-### 启动前端
+本地开发时把 `DB_HOST` 设为 `127.0.0.1`，`DB_USER` 使用测试账号或 `root`，`STORAGE_ROOT` 指向本地临时目录。
+
+### 3. 安装与启动
 
 ```bash
-python3 -m http.server 5173 -d frontend
+cd server
+npm install
+DB_HOST=127.0.0.1 DB_USER=root DB_PASSWORD='***' DB_NAME=ShuijingCloud_test \
+STORAGE_ROOT=/tmp/shuijing-storage APP_PORT=8080 node src/index.js
 ```
 
-浏览器打开 `http://127.0.0.1:5173`。前端会请求 `http://127.0.0.1:8080` 的本地 API。
+访问 `http://127.0.0.1:8080/`（用户端）与 `/admin/`（管理端）。
+
+### 4. 测试
+
+```bash
+cd server && npm test
+```
 
 ## 环境变量
 
-复制 `.env.example` 并填写生产值。真实 `.env` 已被 Git 忽略，权限应设置为 `600`。
-
-| 变量 | 默认值 | 说明 |
+| 变量 | 说明 | 默认 |
 | --- | --- | --- |
-| `DB_HOST` | `127.0.0.1` | 数据库地址 |
-| `DB_PORT` | `3306` | 数据库端口 |
-| `DB_USER` | `root` | 数据库用户，生产环境应使用专用账户 |
-| `DB_PASSWORD` | 空 | 数据库密码 |
-| `DB_NAME` | `shuijingTools` | 数据库名称 |
-| `DB_DRIVER` | `mysql` | `mysql` 或 `sqlite` |
-| `SQLITE_DB_PATH` | `backend/shuijingtools.db` | SQLite 文件位置 |
-| `APP_HOST` | `0.0.0.0` | 开发服务器监听地址 |
-| `APP_PORT` | `8080` | 开发服务器端口 |
-| `STORAGE_ROOT` | `backend/storage` | 用户文件根目录 |
-| `RECYCLE_ROOT` | `STORAGE_ROOT/回收站` | 统一回收站文件根目录 |
-| `ADMIN_USERNAME` | `shuijing` | 管理员账号 |
-| `ADMIN_PASSWORD` | 空 | 管理员密码，生产环境必须配置 |
-| `MAX_CONTENT_LENGTH` | `10737418240` | 单次请求最大10GB |
-| `SECRET_KEY` | 无安全默认值 | 生产签名密钥，必须配置 |
-| `ALLOWED_ORIGINS` | `http://127.0.0.1:5173` | 逗号分隔的 CORS 来源 |
+| `APP_HOST` / `APP_PORT` | 监听地址与端口 | `0.0.0.0` / `8080` |
+| `DB_HOST` / `DB_PORT` | MySQL 地址 | `127.0.0.1` / `3306` |
+| `DB_USER` / `DB_PASSWORD` | 数据库账号 | `root` / 空 |
+| `DB_NAME` | 数据库名 | `ShuijingCloud` |
+| `STORAGE_ROOT` | 用户文件根目录 | `./storage` |
+| `RECYCLE_ROOT` | 回收站根目录 | `$STORAGE_ROOT/回收站` |
+| `LOG_DIR` | 访问日志目录 | 不写文件 |
+| `MAX_CONTENT_LENGTH` | 单文件上传上限（字节） | `10737418240`（10GB） |
+| `SECRET_KEY` | 票据与管理员 token 签名密钥 | 开发默认值 |
+| `RECYCLE_BIN_PASSWORD` | 用户自助恢复回收站口令 | 空（未启用） |
+| `TLS_CERT` / `TLS_KEY` | HTTPS 证书与私钥；都设置时启用 HTTPS | 空（HTTP） |
+| `ALLOWED_ORIGINS` | 额外允许的跨域来源 | `http://127.0.0.1:5173` |
 
 ## API
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| `GET` | `/api/health` | 健康检查 |
-| `GET` | `/api/auth/classes` | 注册和登录可选择的班级 |
-| `POST` | `/api/auth/register` | 提交学生注册申请 |
-| `POST` | `/api/auth/login` | 使用班级、姓名和密码登录 |
-| `GET` | `/api/auth/me` | 当前用户和容量信息 |
-| `POST` | `/api/auth/logout` | 注销当前会话 |
-| `GET` | `/api/files?path=` | 列出目录 |
-| `POST` | `/api/files/upload` | 上传文件或文件夹 |
-| `POST` | `/api/files/mkdir` | 新建文件夹 |
-| `POST` | `/api/files/move` | 批量移动 |
-| `POST` | `/api/files/rename` | 重命名单个文件或文件夹 |
-| `POST` | `/api/files/delete` | 删除单个路径 |
-| `POST` | `/api/files/batch-delete` | 批量删除 |
-| `POST` | `/api/files/download/prepare` | 生成短期下载链接 |
-| `GET` | `/api/files/download/ticket/<ticket>` | 下载原文件或 ZIP |
-| `GET` | `/api/files/download?path=` | 直接下载接口 |
-| `GET` | `/api/files/preview?path=` | API 内联预览 |
-| `POST` | `/api/files/preview/start` | 创建预览会话 |
-| `GET` | `/preview/<path>` | 使用预览会话打开文件 |
-| `GET` | `/api/auth/announcements` | 当前班级公告 |
-| `POST` | `/api/auth/reports` | 向管理员提交汇报 |
-| `POST` | `/api/admin/login` | 管理员登录 |
-| `GET` | `/api/admin/overview` | 班级、学生、申请和汇报总览 |
-| `GET` | `/api/admin/logs` | 管理员统一查询全部学生操作日志 |
-| `POST/PATCH/DELETE` | `/api/admin/classes...` | 管理班级及联动目录 |
-| `POST` | `/api/admin/requests/<id>/review` | 审核注册申请 |
-| `PATCH/DELETE` | `/api/admin/students/<id>` | 管理学生及联动目录 |
-| `GET/POST` | `/api/admin/students/<id>/...` | 管理学生文件 |
-| `GET` | `/api/admin/recycle` | 查看统一回收站 |
-| `POST` | `/api/admin/recycle/<id>/restore` | 管理员恢复文件 |
+所有接口以 `/api` 为前缀，认证使用 `Authorization: Bearer <token>`，错误统一返回 `{"detail": "..."}`。
 
-除健康检查、登录和签名下载链接外，API 需要：
+- `POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/logout`
+- `GET /api/auth/classes`、`POST /api/auth/register`、`GET /api/auth/announcements`
+- `GET /api/auth/shared-files`、`GET /api/auth/shared-files/:id`
+- `POST /api/auth/shared-files/:id/download/prepare`、`GET /api/auth/shared-files/download/ticket/:ticket`
+- `POST /api/auth/reports`
+- `GET/POST /api/files`、`/upload`、`/mkdir`、`/download`、`/delete`、`/batch-delete`、`/move`、`/rename`
+- `POST /api/files/download/prepare`、`GET /api/files/download/ticket/:ticket`
+- `GET /api/recycle`、`POST /api/recycle/:id/restore`
+- `GET /api/logs`
+- `POST /api/admin/login`、`GET /api/admin/overview`、`/dashboard-stats`、`/messages`、`/logs`
+- 管理端用户组、注册审核、学生、管理员、公告、回收站、个人文件、班级文件、学生文件与共享接口
+- `GET /api/health`
 
-```http
-Authorization: Bearer <token>
-```
-
-## 测试
-
-```bash
-SECRET_KEY=test-secret \
-DB_DRIVER=sqlite \
-SQLITE_DB_PATH=/tmp/shuijingtools_test.db \
-STORAGE_ROOT=/tmp/shuijingtools_test_storage \
-python -m unittest discover -s tests -v
-```
-
-测试覆盖注册审核、密码登录、班级/学生目录、文件上传、公告、汇报、统一回收站恢复，以及学生改名和转班的目录联动。下载回归测试会实际请求普通用户的签名下载链接、管理员个人文件下载、用户组共享文件下载，并验证共享下载日志和管理员文件回收站恢复；部署前应执行此命令并确保全部通过。
+文档预览接口保留但只对图片、音视频与文本生效；PDF / Office 返回 415。
 
 ## 生产部署
 
-生产环境由以下组件组成：
+详见 [deploy/README.md](deploy/README.md)。生产形态：
 
-- Nginx 容器 `shuijing-nginx`：TLS、静态前端和反向代理；
-- systemd 服务 `shuijing-tools.service`：运行两个 Gunicorn worker；
-- MySQL 容器：保存用户、会话和文件操作日志；
-- `storage/`：保存按班级和学生划分的真实文件，以及其中的统一回收站。
-- 旧的 `recycle_bin/` 仅用于迁移前历史数据，迁移后不再写入。
-
-后端与 Nginx 的长请求超时均为600秒。完整更新命令和回滚说明见 `deploy/README.md`。
+- 容器 `shuijing-cloud`，`restart unless-stopped`，`-p 8080:8080`
+- Node 直接使用 `shuijing.site` 证书提供 HTTPS
+- 挂载 `storage`、`logs` 与只读证书目录
+- 通过 `host.docker.internal:3306` 连接 NAS 上的 MySQL
 
 ## 数据安全
 
-以下生产目录是持久化数据，部署或清理代码时绝对不能删除：
+以下目录保存真实用户数据，任何更新都不得删除或清空：
 
 ```text
-/vol2/1000/backup/ShuijingTools/storage
-/vol2/1000/backup/ShuijingTools/recycle_bin
-/vol2/1000/backup/docker/mysql
+/vol2/1000/deploy/ShuijingCloud/storage
+/vol2/1000/deploy/ShuijingCloud/logs
+/vol2/1000/deploy/mysql
 ```
-
-同时谨慎处理：
-
-```text
-/vol2/1000/backup/ShuijingTools/deploy/nginx/certs
-/vol2/1000/backup/ShuijingTools/logs
-```
-
-不要在生产项目根目录运行 `git clean -fdx`，也不要对整个项目根目录使用 `rsync --delete`。数据库结构变更前应先导出数据库或创建数据快照。

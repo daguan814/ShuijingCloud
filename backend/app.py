@@ -36,7 +36,7 @@ def create_app():
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
     app.config["SECRET_KEY"] = SECRET_KEY
-    if SECRET_KEY == "shuijing-tools-preview-secret-change-me" and os.getenv("FLASK_DEBUG", "0") != "1":
+    if SECRET_KEY == "shuijing-cloud-preview-secret-change-me" and os.getenv("FLASK_DEBUG", "0") != "1":
         raise RuntimeError("SECRET_KEY must be configured")
     app.kk_preview_serializer = URLSafeTimedSerializer(
         app.config["SECRET_KEY"], salt="shuijing-kkfileview-preview"
