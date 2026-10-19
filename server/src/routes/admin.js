@@ -13,6 +13,7 @@ import { signToken, verifyToken, bearerToken } from "../lib/tokens.js";
 import { collectFiles, createZip, removeFile } from "../lib/zip.js";
 import { adminFileService } from "../services/adminFileService.js";
 import { adminService } from "../services/adminService.js";
+import { applicationService } from "../services/applicationService.js";
 import { fileService } from "../services/fileService.js";
 import { logService } from "../services/logService.js";
 import { recycleService } from "../services/recycleService.js";
@@ -157,7 +158,6 @@ adminRouter.get("/overview", async (_req, res) => {
     classes: await schoolService.classes(),
     students: await schoolService.students(),
     requests: await schoolService.requests(),
-    reports: await schoolService.reports(),
     announcements: await schoolService.announcements(),
   });
 });
@@ -166,7 +166,6 @@ adminRouter.get("/dashboard-stats", async (_req, res) => {
   const classes = await schoolService.classes();
   const students = await schoolService.students();
   const requests = await schoolService.requests();
-  const reports = await schoolService.reports();
   const admins = await adminService.list();
   const studentStorage = students.reduce((sum, item) => sum + item.used, 0);
   let adminStorage = 0;
@@ -222,8 +221,7 @@ adminRouter.get("/dashboard-stats", async (_req, res) => {
       classes: classes.length,
       users: students.length,
       active_users: students.filter((item) => item.status === "active").length,
-      pending_requests: requests.length,
-      reports: reports.length,
+      pending_requests: await applicationService.pendingCount(),
       admins: admins.length,
       storage_used: totalStorage,
       storage_display: formatSize(totalStorage),
@@ -283,22 +281,24 @@ adminRouter.patch("/admins/:adminId", async (req, res) => {
 adminRouter.get("/messages", async (req, res) => {
   const classId = Number(req.query.class_id || 0) || null;
   const day = String(req.query.date || "").trim() || null;
-  const page = parsePage(req.query.page, 1);
-  const pageSize = parsePageSize(req.query.page_size, 20);
   if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
     throw new HttpError(400, "消息筛选参数无效");
   }
-  const reports = await schoolService.reportsPage(classId, day, page, pageSize);
-  res.json({
-    requests: await schoolService.requests(classId, day),
-    reports: reports.items,
-    reports_paging: {
-      total: reports.total,
-      page: reports.page,
-      page_size: reports.page_size,
-      total_pages: reports.total_pages,
-    },
-  });
+  res.json({ requests: await schoolService.requests(classId, day) });
+});
+
+adminRouter.get("/review", async (_req, res) => {
+  res.json({ items: await applicationService.listPendingMixed() });
+});
+
+adminRouter.post("/applications/:applicationId/review", async (req, res) => {
+  const payload = req.body || {};
+  await applicationService.review(
+    Number(req.params.applicationId),
+    Boolean(payload.approve),
+    req.admin.id,
+  );
+  res.status(204).end();
 });
 
 adminRouter.get("/logs", async (req, res) => {

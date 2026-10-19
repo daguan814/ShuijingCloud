@@ -11,6 +11,7 @@ import { signToken, verifyToken } from "../lib/tokens.js";
 import { verifyPassword } from "../lib/password.js";
 import { collectFiles, createZip, removeFile } from "../lib/zip.js";
 import { adminFileService } from "../services/adminFileService.js";
+import { applicationService } from "../services/applicationService.js";
 import { fileService } from "../services/fileService.js";
 import { logService } from "../services/logService.js";
 import { schoolService } from "../services/schoolService.js";
@@ -305,9 +306,29 @@ authRouter.post(
   },
 );
 
-authRouter.post("/reports", async (req, res) => {
-  await schoolService.addReport(req.user.id, (req.body || {}).content);
-  res.status(204).end();
+authRouter.get("/applications", async (req, res) => {
+  res.json({ items: await applicationService.listForUser(req.user.id) });
+});
+
+authRouter.post("/applications", async (req, res) => {
+  const payload = req.body || {};
+  let id;
+  if (payload.type === "password") {
+    id = await applicationService.createPasswordApplication(
+      req.user,
+      payload.current_password,
+      payload.new_password,
+      payload.confirm_password,
+    );
+  } else if (payload.type === "class") {
+    id = await applicationService.createClassApplication(
+      req.user,
+      Number(payload.target_class_id),
+    );
+  } else {
+    throw new HttpError(400, "申请类型无效");
+  }
+  res.status(201).json({ id, status: "pending" });
 });
 
 export { normalizeRelativePath };

@@ -1,6 +1,6 @@
 # 水镜云盘（ShuijingCloud）
 
-面向班级的文件云盘：按班级与学生隔离目录，学生自助上传、下载与整理文件，管理员统一管理用户组、注册审核、共享文件、回收站与操作日志。
+面向班级的文件云盘：按班级与学生隔离目录，学生自助上传、下载与整理文件，管理员统一管理用户组、注册与用户申请审核、共享文件、回收站与操作日志。
 
 后端已迁移到 Node.js（Express 5 + mysql2），前端保持静态 Vue 3，无需构建步骤，由 Node 进程同源提供页面与 API。
 
@@ -13,7 +13,10 @@
 - 管理员改名或转组时，对应文件目录同步移动；
 - 管理员选择用户组后可直接查看该组用户目录，并像个人云盘一样逐级浏览、上传、新建、重命名、移动、删除和下载文件；
 - 管理员个人文件可共享给指定用户组；
-- 管理员可以按用户组发布公告，用户可以向管理员提交报告；
+- 管理员可以按用户组发布公告；用户登录后以弹窗阅读公告，确认前有 5 秒倒计时；
+- 用户可以在“申请”页提交更改密码或更改用户组申请，管理员统一审核；
+- 改密码需要验证原密码并输入两次新密码；改组审核通过后文件与回收站目录一起迁移到新组；
+- 用户端与管理端统一使用橙粉渐变主题；
 - 浏览目录、查看修改时间和普通文件大小；
 - 文件夹显示直接下一层的文件夹数、文件数以及全部内容总大小；
 - 上传单个文件、多个文件或完整文件夹，支持拖放并保留目录结构；
@@ -34,7 +37,6 @@ server/            Node.js 服务（Express 5）
   src/lib/         密码校验、路径安全、票据签名、ZIP
   test/            node:test 单元测试
 frontend/          静态 Vue 3 页面与管理端
-backend/           旧 Python 实现，仅作迁移对照，不再部署
 deploy/            部署说明与历史配置
 ```
 
@@ -109,13 +111,14 @@ cd server && npm test
 - `GET /api/auth/classes`、`POST /api/auth/register`、`GET /api/auth/announcements`
 - `GET /api/auth/shared-files`、`GET /api/auth/shared-files/:id`
 - `POST /api/auth/shared-files/:id/download/prepare`、`GET /api/auth/shared-files/download/ticket/:ticket`
-- `POST /api/auth/reports`
+- `GET/POST /api/auth/applications`
 - `GET/POST /api/files`、`/upload`、`/mkdir`、`/download`、`/delete`、`/batch-delete`、`/move`、`/rename`
 - `POST /api/files/download/prepare`、`GET /api/files/download/ticket/:ticket`
 - `GET /api/recycle`、`POST /api/recycle/:id/restore`
 - `GET /api/logs`
 - `POST /api/admin/login`、`GET /api/admin/overview`、`/dashboard-stats`、`/messages`、`/logs`
-- 管理端用户组、注册审核、学生、管理员、公告、回收站、个人文件、班级文件、学生文件与共享接口
+- `GET /api/admin/review`、`POST /api/admin/applications/:id/review`
+- 管理端用户组、审核、学生、管理员、公告、回收站、个人文件、班级文件、学生文件与共享接口
 - `GET /api/health`
 
 文档预览接口保留但只对图片、音视频与文本生效；PDF / Office 返回 415。
