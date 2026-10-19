@@ -22,7 +22,7 @@ DB_NAME = os.getenv("DB_NAME", "ShuijingCloud")
 DB_DRIVER = os.getenv("DB_DRIVER", "mysql").strip().lower()
 SQLITE_DB_PATH = os.getenv(
     "SQLITE_DB_PATH",
-    str(BASE_DIR / "shuijingtools.db"),
+    str(BASE_DIR / "shuijingcloud.db"),
 )
 
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")

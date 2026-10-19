@@ -35,7 +35,7 @@
         <div class="sidebar-heading">存储空间</div><button class="sidebar-link" :class="{active:view==='files'}" @click="openFiles('')"><span class="sidebar-icon">📁</span><span>全部文件</span></button>
         <div class="sidebar-heading sidebar-heading--tools">工具</div><button class="sidebar-link" :class="{active:view==='shared'}" @click="openShared"><span class="sidebar-icon">📤</span><span>管理员共享</span></button><button class="sidebar-link" :class="{active:view==='reports'}" @click="view='reports'"><span class="sidebar-icon">📝</span><span>提交报告</span></button>
         <div class="sidebar-heading sidebar-heading--notice">公告</div><div class="sidebar-announcement" v-if="currentAnnouncement"><strong>{{currentAnnouncement.title}}</strong><p>{{currentAnnouncement.content}}</p></div><div class="sidebar-announcement sidebar-announcement--empty" v-else>暂无公告</div>
-        <div class="sidebar-footer"><div>V1.5.0</div><div>design by 云梦职业教育中心 teacher.lu</div></div>
+<div class="sidebar-footer"><div>V2.0</div><div>design by 云梦职业教育中心 teacher.lu</div></div>
       </aside>
       <main class="main-content" @dragover.prevent @drop.prevent="dropFiles">
         <section v-if="view==='files'" class="page-section">
