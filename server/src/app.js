@@ -90,10 +90,13 @@ api.get("/preview/:ticket/:filename", async (req, res) => {
     `inline; filename*=UTF-8''${encodeURIComponent(path.basename(target))}`,
   );
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader(
-    "Content-Security-Policy",
-    "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'",
-  );
+  const extension = path.extname(target).toLowerCase();
+  if ([".html", ".htm", ".svg"].includes(extension)) {
+    res.setHeader(
+      "Content-Security-Policy",
+      "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'",
+    );
+  }
   return res.sendFile(path.resolve(target));
 });
 

@@ -26,8 +26,8 @@ const upload = multer({
   limits: { fileSize: config.maxUploadBytes },
 });
 
-const INLINE_PREVIEW = /\.(png|jpe?g|gif|webp|svg|bmp|ico|txt|md|csv|json|log|ini|conf|yml|yaml|html?|mp3|wav|ogg|m4a|flac|mp4|webm|ogv|mov)$/i;
-const DOCUMENT_PREVIEW = /\.(pdf|docx?|xlsx?|pptx?|rtf|odt|ods|odp)$/i;
+const INLINE_PREVIEW = /\.(png|jpe?g|gif|webp|svg|bmp|ico|pdf|txt|md|csv|json|log|ini|conf|yml|yaml|html?|mp3|wav|ogg|m4a|flac|mp4|webm|ogv|mov)$/i;
+const DOCUMENT_PREVIEW = /\.(docx?|xlsx?|pptx?|rtf|odt|ods|odp)$/i;
 
 async function adminRequired(req, res, next) {
   try {
